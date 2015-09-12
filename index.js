@@ -1,7 +1,15 @@
-var pg = require('pg');
-var cool = require('cool-ascii-faces');
+// express
 var express = require('express');
 var app = express();
+var bodyParser = require('body-parser');
+app.use(bodyParser.json());
+app.use(bodyParser.urlencoded({ extended: false }));
+
+var MongoClient = require('mongodb').MongoClient;
+var ObjectId = require('mongodb').ObjectID;
+var mongodbUrl = process.env.MONGOLAB_URI;
+var assert = require('assert');
+var cool = require('cool-ascii-faces');
 
 app.set('port', (process.env.PORT || 5000));
 
@@ -11,36 +19,71 @@ app.use(express.static(__dirname + '/public'));
 app.set('views', __dirname + '/views');
 app.set('view engine', 'ejs');
 
-app.get('/db', function (request, response) {
-  pg.connect(process.env.DATABASE_URL, function(err, client, done) {
-    client.query('SELECT * FROM test_table', function(err, result) {
-      done();
-      if (err)
-       { console.error(err); response.send("Error " + err); }
-      else
-       { response.render('pages/db', {results: result.rows} ); }
-    });
-  });
+MongoClient.connect(mongodbUrl, function(err, db) {
+    assert.equal(null, err);
+    console.log("Connected correctly to server.");
+    db.close();
 });
+
 
 app.get('/', function(request, response) {
-  response.render('pages/index');
+    response.send('Early Bird!! ' + cool());
 });
 
-app.get('/smile', function(request, response) {
-  var result = '';
-  var times = process.env.TIMES || 5;
-  for (var i = 0; i < times; i++)
-    result += cool();
-  response.send(result);
+app.post('/alarmInfo', function (req, res) {
+    res.send('Success: alarmInfo');
+    console.log("Got response: " + res.statusCode);
+
+    MongoClient.connect(mongodbUrl, function(err, db) {
+        assert.equal(null, err);
+        req.body._id = ObjectId;
+        console.log(req.body);
+        insertDocument(db, 'alarmInfo', req.body,
+            function() {
+                db.close();
+            });
+    });
 });
 
-app.get('/cool', function(request, response) {
-  response.send(cool());
+app.get('/db', function (request, response) {
+    MongoClient.connect(mongodbUrl, function(err, db) {
+        assert.equal(null, err);
+        findDocument(db, 'alarmInfo', function(err, doc) {
+            assert.equal(null, err);
+            db.close();
+
+            if (!err) {
+                response.render('pages/db', {results: doc} );
+            }
+        });
+    });
+});
+
+app.get('/heroku', function(request, response) {
+    response.render('pages/index');
 });
 
 app.listen(app.get('port'), function() {
-  console.log('Node app is running on port', app.get('port'));
+    console.log('Node app is running on port', app.get('port'));
 });
 
 
+var insertDocument = function(db, collection, data, callback) {
+    db.collection(collection).insertOne(data, function(err, result) {
+        assert.equal(err, null);
+        console.log("Inserted a document into the " + collection + " collection.");
+        callback(result);
+    });
+};
+
+var findDocument = function(db, collection, callback) {
+    var cursor = db.collection(collection).find();
+    cursor.toArray(function(err, doc) {
+        assert.equal(err, null);
+        if (doc != null) {
+            callback(err, doc);
+        } else {
+            callback(err);
+        }
+    });
+};
