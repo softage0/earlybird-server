@@ -30,8 +30,42 @@ app.get('/', function(request, response) {
     response.send('Early Bird!! ' + cool());
 });
 
+app.post('/postAlarm', function (req, res) {
+    console.log("Got response: " + res.statusCode);
+
+    MongoClient.connect(mongodbUrl, function(err, db) {
+        assert.equal(null, err);
+        req.body._id = ObjectId;
+        console.log(req.body);
+
+        insertDocument(db, 'alarmList', req.body,
+            function() {
+                res.send('Success: alarmList added');
+                db.close();
+            });
+    });
+});
+
+app.get('/alarmInfo', function (req, res) {
+    MongoClient.connect(mongodbUrl, function(err, db) {
+        assert.equal(null, err);
+        var queries = [];
+        if (req.query.code) queries.push( { "code": req.query.code });
+        if (req.query.uid) queries.push( { "uid": req.query.uid });
+
+        findDocument(db, 'alarmList', queries && { $and: queries }, function(err, doc) {
+            assert.equal(null, err);
+            db.close();
+
+            if (!err) {
+                console.log(doc);
+                res.json(doc);
+            }
+        });
+    });
+});
+
 app.post('/alarmInfo', function (req, res) {
-    res.send('Success: alarmInfo');
     console.log("Got response: " + res.statusCode);
 
     MongoClient.connect(mongodbUrl, function(err, db) {
@@ -40,6 +74,7 @@ app.post('/alarmInfo', function (req, res) {
         console.log(req.body);
         insertDocument(db, 'alarmInfo', req.body,
             function() {
+                res.send('Success: alarmInfo');
                 db.close();
             });
     });
@@ -48,7 +83,7 @@ app.post('/alarmInfo', function (req, res) {
 app.get('/db', function (request, response) {
     MongoClient.connect(mongodbUrl, function(err, db) {
         assert.equal(null, err);
-        findDocument(db, 'alarmInfo', function(err, doc) {
+        findDocument(db, 'alarmInfo', null, function(err, doc) {
             assert.equal(null, err);
             db.close();
 
@@ -76,8 +111,8 @@ var insertDocument = function(db, collection, data, callback) {
     });
 };
 
-var findDocument = function(db, collection, callback) {
-    var cursor = db.collection(collection).find();
+var findDocument = function(db, collection, query, callback) {
+    var cursor = db.collection(collection).find(query);
     cursor.toArray(function(err, doc) {
         assert.equal(err, null);
         if (doc != null) {
