@@ -30,6 +30,29 @@ app.get('/', function(request, response) {
     response.send('Early Bird!! ' + cool());
 });
 
+app.post('/login', function (req, res) {
+    console.log("Got response: " + res.statusCode);
+
+    MongoClient.connect(mongodbUrl, function(err, db) {
+        assert.equal(null, err);
+        req.body._id = ObjectId;
+        console.log(req.body);
+        insertDocument(db, 'account', req.body,
+            function() {
+                findDocument(db, 'alarmList', { 'member.facebookId': req.body.facebookId }, function(err, doc) {
+                    assert.equal(null, err);
+
+                    if (!err) {
+                        console.log(doc);
+                        res.json(doc);
+                    }
+
+                    db.close();
+                });
+            });
+    });
+});
+
 app.post('/postAlarm', function (req, res) {
     console.log("Got response: " + res.statusCode);
 
